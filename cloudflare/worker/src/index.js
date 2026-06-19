@@ -46,8 +46,9 @@ export default {
 // ─── Durable Object ──────────────────────────────────────────────────────────
 
 export class NotificationHub {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env;
     this.sessions = new Set();       // Flutter app clients
     this.adminSessions = new Set();  // Web UI clients
   }
@@ -106,6 +107,15 @@ export class NotificationHub {
 
     // POST /send — broadcast notification to all Flutter clients
     if (url.pathname === '/send' && request.method === 'POST') {
+      const authHeader = request.headers.get('Authorization');
+      const token = authHeader?.replace('Bearer ', '').trim();
+      if (!token || token !== this.env.API_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+
       let body;
       try {
         body = await request.json();

@@ -79,6 +79,9 @@
 
     <div id="badge" class="connected-badge" style="display:none">● <span id="connCount">0</span> device(s) connected</div>
 
+    <label for="apiKey">API Key</label>
+    <input id="apiKey" type="password" placeholder="Enter your API key" />
+
     <label for="title">Notification Title</label>
     <input id="title" type="text" placeholder="e.g. Server Alert" />
 
@@ -95,6 +98,13 @@
   <script>
     const API_URL = 'https://notiplus-api.k-kittanai46.workers.dev';
     const WS_ADMIN_URL = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
+
+    // Load saved API key
+    const apiKeyInput = document.getElementById('apiKey');
+    apiKeyInput.value = localStorage.getItem('notiplus_api_key') || '';
+    apiKeyInput.addEventListener('change', () => {
+      localStorage.setItem('notiplus_api_key', apiKeyInput.value.trim());
+    });
 
     // Real-time device count via WebSocket
     function connectAdmin() {
@@ -115,6 +125,7 @@
     connectAdmin();
 
     async function sendNotification() {
+      const apiKey   = document.getElementById('apiKey').value.trim();
       const title    = document.getElementById('title').value.trim();
       const body     = document.getElementById('body').value.trim();
       const imageUrl = document.getElementById('imageUrl').value.trim();
@@ -124,8 +135,11 @@
       statusEl.className = 'status';
       statusEl.textContent = '';
 
-      if (!title) return showStatus('error', 'Title is required');
-      if (!body)  return showStatus('error', 'Body is required');
+      if (!apiKey) return showStatus('error', 'API Key is required');
+      if (!title)  return showStatus('error', 'Title is required');
+      if (!body)   return showStatus('error', 'Body is required');
+
+      localStorage.setItem('notiplus_api_key', apiKey);
 
       btn.disabled = true;
       btn.textContent = 'Sending…';
@@ -133,7 +147,10 @@
       try {
         const res = await fetch(`${API_URL}/send`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+          },
           body: JSON.stringify({ title, body, ...(imageUrl ? { imageUrl } : {}) }),
         });
         const data = await res.json();
