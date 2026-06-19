@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSUserNotificationUsageDescription</key>
 	<string>This app needs notification access to deliver real-time alerts.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to scan QR codes.</string>
 </dict>
 </plist>

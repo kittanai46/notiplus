@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
@@ -252,21 +253,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _scanQrCode() async {
+    final result = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+    );
+    if (result != null && result.isNotEmpty) {
+      _urlController.text = result;
+    }
+  }
+
   Widget _buildConnectionCard() {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
-            controller: _urlController,
-            enabled: !_isConnected,
-            decoration: const InputDecoration(
-              labelText: 'WebSocket URL',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.link),
-            ),
-            keyboardType: TextInputType.url,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _urlController,
+                  enabled: !_isConnected,
+                  decoration: const InputDecoration(
+                    labelText: 'WebSocket URL',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.link),
+                  ),
+                  keyboardType: TextInputType.url,
+                ),
+              ),
+              if (!_isConnected) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: _scanQrCode,
+                  icon: const Icon(Icons.qr_code_scanner),
+                  tooltip: 'Scan QR Code',
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.deepPurple[50],
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
@@ -349,5 +377,37 @@ class _HomeScreenState extends State<HomeScreen> {
     final m = time.minute.toString().padLeft(2, '0');
     final s = time.second.toString().padLeft(2, '0');
     return '$h:$m:$s';
+  }
+}
+
+class QrScannerScreen extends StatefulWidget {
+  const QrScannerScreen({super.key});
+
+  @override
+  State<QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  bool _scanned = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan QR Code'),
+        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          if (_scanned) return;
+          final barcode = capture.barcodes.firstOrNull;
+          final value = barcode?.rawValue;
+          if (value != null && value.startsWith('wss://')) {
+            _scanned = true;
+            Navigator.pop(context, value);
+          }
+        },
+      ),
+    );
   }
 }

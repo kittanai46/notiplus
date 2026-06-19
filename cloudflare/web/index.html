@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NotiPlus — Send Notification</title>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -23,8 +24,32 @@
       max-width: 480px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
-    h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
-    .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    h1 { font-size: 22px; color: #1a1a2e; }
+    .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .settings-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 20px;
+      padding: 4px;
+      width: auto;
+      color: #aaa;
+      transition: color 0.2s;
+    }
+    .settings-btn:hover { color: #555; }
+    .settings-panel {
+      background: #f8f8ff;
+      border: 1.5px solid #e0e0ff;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 16px;
+    }
     label { display: block; font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px; }
     input, textarea {
       width: 100%;
@@ -88,17 +113,44 @@
       color: #f57f17;
       font-size: 13px;
     }
+    .qr-section {
+      text-align: center;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: #f8f8f8;
+      border-radius: 8px;
+    }
+    .qr-section p {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 10px;
+    }
+    .qr-section canvas { border-radius: 8px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>🔔 NotiPlus</h1>
-    <p class="subtitle">Send push notifications to all connected Flutter apps</p>
+    <div class="header-row">
+      <div>
+        <h1>🔔 NotiPlus</h1>
+        <p class="subtitle">Send push notifications to all connected Flutter apps</p>
+      </div>
+      <button class="settings-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+    </div>
+
+    <div id="settingsPanel" class="settings-panel" style="display:none">
+      <label for="apiKey">API Key</label>
+      <input id="apiKey" type="password" placeholder="Enter your API key" style="margin-bottom:0" />
+    </div>
+
+    <div style="margin-bottom:16px"></div>
 
     <div id="badge" class="connected-badge" style="display:none">● <span id="connCount">0</span> device(s) connected</div>
 
-    <label for="apiKey">API Key</label>
-    <input id="apiKey" type="password" placeholder="Enter your API key" />
+    <div class="qr-section">
+      <p>Scan QR code to connect Flutter app</p>
+      <canvas id="qrCanvas"></canvas>
+    </div>
 
     <label for="title">Notification Title</label>
     <input id="title" type="text" placeholder="e.g. Server Alert" />
@@ -109,7 +161,7 @@
     <label for="imageUrl">Image URL <span style="font-weight:400;color:#aaa">(optional)</span></label>
     <input id="imageUrl" type="url" placeholder="https://example.com/image.jpg" />
     <img id="imagePreview" class="image-preview" alt="Preview" />
-    <div id="imagePreviewError" class="image-preview-error">⚠️ Cannot preview this image (hotlink protection) — notification will still include the image</div>
+    <div id="imagePreviewError" class="image-preview-error">⚠️ Cannot preview — image has hotlink protection. Notification will still include the image.</div>
 
     <button id="sendBtn" onclick="sendNotification()">Send Notification</button>
     <div id="status" class="status"></div>
@@ -117,19 +169,30 @@
 
   <script>
     const API_URL = 'https://notiplus-api.k-kittanai46.workers.dev';
+    const WS_URL  = 'wss://notiplus-api.k-kittanai46.workers.dev/ws';
     const WS_ADMIN_URL = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
 
-    // Load saved API key
+    // Generate QR code for Flutter app
+    QRCode.toCanvas(document.getElementById('qrCanvas'), WS_URL, {
+      width: 180,
+      color: { dark: '#1a1a2e', light: '#f8f8f8' },
+    });
+
+    // Settings panel
     const apiKeyInput = document.getElementById('apiKey');
     apiKeyInput.value = localStorage.getItem('notiplus_api_key') || '';
-    apiKeyInput.addEventListener('change', () => {
+    apiKeyInput.addEventListener('input', () => {
       localStorage.setItem('notiplus_api_key', apiKeyInput.value.trim());
     });
+
+    function toggleSettings() {
+      const panel = document.getElementById('settingsPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    }
 
     // Real-time device count via WebSocket
     function connectAdmin() {
       const ws = new WebSocket(WS_ADMIN_URL);
-
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         if (data.connected !== undefined) {
@@ -137,52 +200,50 @@
           document.getElementById('badge').style.display = 'inline-block';
         }
       };
-
       ws.onclose = () => setTimeout(connectAdmin, 3000);
       ws.onerror = () => ws.close();
     }
-
     connectAdmin();
 
-    // Image preview
+    // Image preview — set onerror BEFORE src to avoid race condition
     document.getElementById('imageUrl').addEventListener('input', (e) => {
       const url = e.target.value.trim();
       const preview = document.getElementById('imagePreview');
       const previewError = document.getElementById('imagePreviewError');
 
+      preview.style.display = 'none';
+      previewError.style.display = 'none';
+
       if (url) {
-        preview.src = url;
-        preview.style.display = 'block';
-        previewError.style.display = 'none';
         preview.onerror = () => {
           preview.style.display = 'none';
           previewError.style.display = 'block';
         };
         preview.onload = () => {
           previewError.style.display = 'none';
+          preview.style.display = 'block';
         };
-      } else {
-        preview.style.display = 'none';
-        previewError.style.display = 'none';
+        preview.src = url;
       }
     });
 
     async function sendNotification() {
-      const apiKey   = document.getElementById('apiKey').value.trim();
+      const apiKey   = localStorage.getItem('notiplus_api_key') || '';
       const title    = document.getElementById('title').value.trim();
       const body     = document.getElementById('body').value.trim();
       const imageUrl = document.getElementById('imageUrl').value.trim();
       const statusEl = document.getElementById('status');
-      const btn = document.getElementById('sendBtn');
+      const btn      = document.getElementById('sendBtn');
 
       statusEl.className = 'status';
       statusEl.textContent = '';
 
-      if (!apiKey) return showStatus('error', 'API Key is required');
-      if (!title)  return showStatus('error', 'Title is required');
-      if (!body)   return showStatus('error', 'Body is required');
-
-      localStorage.setItem('notiplus_api_key', apiKey);
+      if (!apiKey) {
+        toggleSettings();
+        return showStatus('error', 'Please enter your API Key in ⚙️ Settings first');
+      }
+      if (!title) return showStatus('error', 'Title is required');
+      if (!body)  return showStatus('error', 'Body is required');
 
       btn.disabled = true;
       btn.textContent = 'Sending…';
