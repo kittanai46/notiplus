@@ -70,6 +70,15 @@
       border-radius: 99px;
       margin-bottom: 20px;
     }
+    .image-preview {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+      border: 1.5px solid #e0e0e0;
+    }
   </style>
 </head>
 <body>
@@ -90,6 +99,7 @@
 
     <label for="imageUrl">Image URL <span style="font-weight:400;color:#aaa">(optional)</span></label>
     <input id="imageUrl" type="url" placeholder="https://example.com/image.jpg" />
+    <img id="imagePreview" class="image-preview" alt="Preview" />
 
     <button id="sendBtn" onclick="sendNotification()">Send Notification</button>
     <div id="status" class="status"></div>
@@ -123,6 +133,19 @@
     }
 
     connectAdmin();
+
+    // Image preview
+    document.getElementById('imageUrl').addEventListener('input', (e) => {
+      const url = e.target.value.trim();
+      const preview = document.getElementById('imagePreview');
+      if (url) {
+        preview.src = url;
+        preview.style.display = 'block';
+        preview.onerror = () => preview.style.display = 'none';
+      } else {
+        preview.style.display = 'none';
+      }
+    });
 
     async function sendNotification() {
       const apiKey   = document.getElementById('apiKey').value.trim();
