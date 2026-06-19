@@ -79,6 +79,15 @@
       display: none;
       border: 1.5px solid #e0e0e0;
     }
+    .image-preview-error {
+      display: none;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #fff8e1;
+      color: #f57f17;
+      font-size: 13px;
+    }
   </style>
 </head>
 <body>
@@ -100,6 +109,7 @@
     <label for="imageUrl">Image URL <span style="font-weight:400;color:#aaa">(optional)</span></label>
     <input id="imageUrl" type="url" placeholder="https://example.com/image.jpg" />
     <img id="imagePreview" class="image-preview" alt="Preview" />
+    <div id="imagePreviewError" class="image-preview-error">⚠️ Cannot preview this image (hotlink protection) — notification will still include the image</div>
 
     <button id="sendBtn" onclick="sendNotification()">Send Notification</button>
     <div id="status" class="status"></div>
@@ -138,12 +148,22 @@
     document.getElementById('imageUrl').addEventListener('input', (e) => {
       const url = e.target.value.trim();
       const preview = document.getElementById('imagePreview');
+      const previewError = document.getElementById('imagePreviewError');
+
       if (url) {
         preview.src = url;
         preview.style.display = 'block';
-        preview.onerror = () => preview.style.display = 'none';
+        previewError.style.display = 'none';
+        preview.onerror = () => {
+          preview.style.display = 'none';
+          previewError.style.display = 'block';
+        };
+        preview.onload = () => {
+          previewError.style.display = 'none';
+        };
       } else {
         preview.style.display = 'none';
+        previewError.style.display = 'none';
       }
     });
 
