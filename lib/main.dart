@@ -144,7 +144,7 @@ class _MainScreenState extends State<MainScreen> {
   Timer? _reconnectTimer;
   bool _isConnected = false;
   int _selectedIndex = 0;
-  final List<ReceivedNotification> _notifications = [];
+  final _notificationsNotifier = ValueNotifier<List<ReceivedNotification>>([]);
   int _unreadCount = 0;
 
   @override
@@ -190,18 +190,16 @@ class _MainScreenState extends State<MainScreen> {
 
       _showLocalNotification(title, body, imageUrl: imageUrl);
 
-      setState(() {
-        _notifications.insert(
-          0,
-          ReceivedNotification(
-            title: title,
-            body: body,
-            imageUrl: imageUrl,
-            time: DateTime.now(),
-          ),
-        );
-        _unreadCount++;
-      });
+      _notificationsNotifier.value = [
+        ReceivedNotification(
+          title: title,
+          body: body,
+          imageUrl: imageUrl,
+          time: DateTime.now(),
+        ),
+        ..._notificationsNotifier.value,
+      ];
+      setState(() => _unreadCount++);
     } catch (_) {}
   }
 
@@ -213,7 +211,11 @@ class _MainScreenState extends State<MainScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => NotificationSheet(notifications: _notifications),
+      builder: (_) => ValueListenableBuilder<List<ReceivedNotification>>(
+        valueListenable: _notificationsNotifier,
+        builder: (_, notifications, __) =>
+            NotificationSheet(notifications: notifications),
+      ),
     );
   }
 
@@ -222,6 +224,7 @@ class _MainScreenState extends State<MainScreen> {
     _reconnectTimer?.cancel();
     _subscription?.cancel();
     _channel?.sink.close();
+    _notificationsNotifier.dispose();
     super.dispose();
   }
 
@@ -481,7 +484,7 @@ class ProfileTab extends StatelessWidget {
   }
 }
 
-// ─── Notification Sheet ───────────────────────────────────────────────────────
+// ─── Notification Sheet (List) ───────────────────────────────────────────────
 
 class NotificationSheet extends StatelessWidget {
   final List<ReceivedNotification> notifications;
@@ -498,19 +501,33 @@ class NotificationSheet extends StatelessWidget {
       builder: (_, controller) => Column(children: [
         Container(
           margin: const EdgeInsets.symmetric(vertical: 12),
-          width: 40,
-          height: 4,
+          width: 40, height: 4,
           decoration: BoxDecoration(
             color: Colors.grey[300],
             borderRadius: BorderRadius.circular(2),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Text('Notifications',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  )),
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+          child: Row(children: [
+            Text('การแจ้งเตือน',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.bold)),
+            const Spacer(),
+            if (notifications.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.deepPurple[50],
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text('${notifications.length} รายการ',
+                    style: TextStyle(
+                        color: Colors.deepPurple[400], fontSize: 12)),
+              ),
+          ]),
         ),
         const Divider(height: 1),
         Expanded(
@@ -520,53 +537,186 @@ class NotificationSheet extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.notifications_none,
-                          size: 56, color: Colors.grey[300]),
+                          size: 64, color: Colors.grey[300]),
                       const SizedBox(height: 12),
-                      Text('No notifications yet',
+                      Text('ยังไม่มีการแจ้งเตือน',
                           style: TextStyle(color: Colors.grey[500])),
                     ],
                   ),
                 )
-              : ListView.builder(
+              : ListView.separated(
                   controller: controller,
                   itemCount: notifications.length,
-                  itemBuilder: (_, i) {
-                    final n = notifications[i];
-                    return ListTile(
-                      leading: n.imageUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(6),
-                              child: Image.network(
-                                n.imageUrl!,
-                                width: 44,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => CircleAvatar(
-                                  backgroundColor: Colors.deepPurple[50],
-                                  child: const Icon(Icons.notifications,
-                                      color: Colors.deepPurple),
-                                ),
-                              ),
-                            )
-                          : CircleAvatar(
-                              backgroundColor: Colors.deepPurple[50],
-                              child: const Icon(Icons.notifications,
-                                  color: Colors.deepPurple),
-                            ),
-                      title: Text(n.title,
-                          style:
-                              const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(n.body),
-                      trailing: Text(
-                        '${n.time.hour.toString().padLeft(2, '0')}:${n.time.minute.toString().padLeft(2, '0')}',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                  separatorBuilder: (_, __) =>
+                      Divider(height: 1, indent: 80, color: Colors.grey[100]),
+                  itemBuilder: (_, i) => _NotificationTile(
+                    notification: notifications[i],
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => NotificationDetailScreen(
+                            notification: notifications[i]),
                       ),
-                    );
-                  },
+                    ),
+                  ),
                 ),
         ),
       ]),
     );
+  }
+}
+
+class _NotificationTile extends StatelessWidget {
+  final ReceivedNotification notification;
+  final VoidCallback onTap;
+
+  const _NotificationTile({required this.notification, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _buildThumb(context),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                notification.title,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                notification.body,
+                style: TextStyle(color: Colors.grey[600], fontSize: 13, height: 1.4),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(
+              '${notification.time.hour.toString().padLeft(2, '0')}:${notification.time.minute.toString().padLeft(2, '0')}',
+              style: TextStyle(color: Colors.grey[400], fontSize: 11),
+            ),
+            const SizedBox(height: 4),
+            Icon(Icons.chevron_right, size: 16, color: Colors.grey[300]),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildThumb(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primaryContainer;
+    final iconColor = Theme.of(context).colorScheme.primary;
+
+    if (notification.imageUrl != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.network(
+          notification.imageUrl!,
+          width: 52, height: 52, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _iconBox(color, iconColor),
+        ),
+      );
+    }
+    return _iconBox(color, iconColor);
+  }
+
+  Widget _iconBox(Color bg, Color fg) => Container(
+    width: 52, height: 52,
+    decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+    child: Icon(Icons.notifications, color: fg, size: 24),
+  );
+}
+
+// ─── Notification Detail Screen ───────────────────────────────────────────────
+
+class NotificationDetailScreen extends StatelessWidget {
+  final ReceivedNotification notification;
+
+  const NotificationDetailScreen({super.key, required this.notification});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text('รายละเอียด'),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black87,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      body: SingleChildScrollView(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (notification.imageUrl != null) _buildImage(),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(Icons.access_time_outlined, size: 14, color: Colors.grey[400]),
+                const SizedBox(width: 5),
+                Text(
+                  _formatDateTime(notification.time),
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                ),
+              ]),
+              const SizedBox(height: 14),
+              Text(
+                notification.title,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1a1a2e),
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Divider(color: Colors.grey[100]),
+              const SizedBox(height: 16),
+              Text(
+                notification.body,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey[800],
+                  height: 1.7,
+                ),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildImage() {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 280),
+      child: Image.network(
+        notification.imageUrl!,
+        width: double.infinity,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          height: 160,
+          color: Colors.grey[100],
+          child: Icon(Icons.broken_image_outlined,
+              color: Colors.grey[400], size: 48),
+        ),
+      ),
+    );
+  }
+
+  String _formatDateTime(DateTime t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    return '${t.day}/${t.month}/${t.year + 543} เวลา $h:$m น.';
   }
 }
 
