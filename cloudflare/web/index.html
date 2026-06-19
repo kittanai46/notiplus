@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NotiPlus — Send Notification</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -24,31 +23,16 @@
       max-width: 480px;
       box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     }
-    .header-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 4px;
-    }
-    h1 { font-size: 22px; color: #1a1a2e; }
+    h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
     .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
-    .settings-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      font-size: 20px;
-      padding: 4px;
-      width: auto;
-      color: #aaa;
-      transition: color 0.2s;
-    }
-    .settings-btn:hover { color: #555; }
-    .settings-panel {
-      background: #f8f8ff;
-      border: 1.5px solid #e0e0ff;
-      border-radius: 8px;
-      padding: 14px;
-      margin-bottom: 16px;
+    .connected-badge {
+      display: inline-block;
+      background: #e8f5e9;
+      color: #2e7d32;
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      margin-bottom: 20px;
     }
     label { display: block; font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px; }
     input, textarea {
@@ -63,6 +47,24 @@
       resize: vertical;
     }
     input:focus, textarea:focus { border-color: #6c63ff; }
+    .image-preview {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      display: none;
+      border: 1.5px solid #e0e0e0;
+    }
+    .image-preview-error {
+      display: none;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #fff8e1;
+      color: #f57f17;
+      font-size: 13px;
+    }
     button {
       width: 100%;
       padding: 12px;
@@ -86,71 +88,14 @@
     }
     .status.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .status.error   { background: #ffebee; color: #c62828; display: block; }
-    .connected-badge {
-      display: inline-block;
-      background: #e8f5e9;
-      color: #2e7d32;
-      font-size: 12px;
-      padding: 3px 10px;
-      border-radius: 99px;
-      margin-bottom: 20px;
-    }
-    .image-preview {
-      width: 100%;
-      max-height: 200px;
-      object-fit: cover;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      display: none;
-      border: 1.5px solid #e0e0e0;
-    }
-    .image-preview-error {
-      display: none;
-      margin-bottom: 16px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      background: #fff8e1;
-      color: #f57f17;
-      font-size: 13px;
-    }
-    .qr-section {
-      text-align: center;
-      margin-bottom: 20px;
-      padding: 16px;
-      background: #f8f8f8;
-      border-radius: 8px;
-    }
-    .qr-section p {
-      font-size: 12px;
-      color: #888;
-      margin-bottom: 10px;
-    }
-    .qr-section canvas { border-radius: 8px; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="header-row">
-      <div>
-        <h1>🔔 NotiPlus</h1>
-        <p class="subtitle">Send push notifications to all connected Flutter apps</p>
-      </div>
-      <button class="settings-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
-    </div>
-
-    <div id="settingsPanel" class="settings-panel" style="display:none">
-      <label for="apiKey">API Key</label>
-      <input id="apiKey" type="password" placeholder="Enter your API key" style="margin-bottom:0" />
-    </div>
-
-    <div style="margin-bottom:16px"></div>
+    <h1>🔔 NotiPlus</h1>
+    <p class="subtitle">Send push notifications to all connected Flutter apps</p>
 
     <div id="badge" class="connected-badge" style="display:none">● <span id="connCount">0</span> device(s) connected</div>
-
-    <div class="qr-section">
-      <p>Scan QR code to connect Flutter app</p>
-      <canvas id="qrCanvas"></canvas>
-    </div>
 
     <label for="title">Notification Title</label>
     <input id="title" type="text" placeholder="e.g. Server Alert" />
@@ -168,35 +113,16 @@
   </div>
 
   <script>
-    const API_URL = 'https://notiplus-api.k-kittanai46.workers.dev';
-    const WS_URL  = 'wss://notiplus-api.k-kittanai46.workers.dev/ws';
-    const WS_ADMIN_URL = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
+    const API_URL     = 'https://notiplus-api.k-kittanai46.workers.dev';
+    const WS_ADMIN    = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
+    const API_KEY     = localStorage.getItem('notiplus_api_key') || '';
 
-    // Generate QR code for Flutter app
-    QRCode.toCanvas(document.getElementById('qrCanvas'), WS_URL, {
-      width: 180,
-      color: { dark: '#1a1a2e', light: '#f8f8f8' },
-    });
-
-    // Settings panel
-    const apiKeyInput = document.getElementById('apiKey');
-    apiKeyInput.value = localStorage.getItem('notiplus_api_key') || '';
-    apiKeyInput.addEventListener('input', () => {
-      localStorage.setItem('notiplus_api_key', apiKeyInput.value.trim());
-    });
-
-    function toggleSettings() {
-      const panel = document.getElementById('settingsPanel');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    }
-
-    // Real-time device count via WebSocket
     function connectAdmin() {
-      const ws = new WebSocket(WS_ADMIN_URL);
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.connected !== undefined) {
-          document.getElementById('connCount').textContent = data.connected;
+      const ws = new WebSocket(WS_ADMIN);
+      ws.onmessage = (e) => {
+        const d = JSON.parse(e.data);
+        if (d.connected !== undefined) {
+          document.getElementById('connCount').textContent = d.connected;
           document.getElementById('badge').style.display = 'inline-block';
         }
       };
@@ -205,43 +131,27 @@
     }
     connectAdmin();
 
-    // Image preview — set onerror BEFORE src to avoid race condition
     document.getElementById('imageUrl').addEventListener('input', (e) => {
       const url = e.target.value.trim();
       const preview = document.getElementById('imagePreview');
       const previewError = document.getElementById('imagePreviewError');
-
       preview.style.display = 'none';
       previewError.style.display = 'none';
-
       if (url) {
-        preview.onerror = () => {
-          preview.style.display = 'none';
-          previewError.style.display = 'block';
-        };
-        preview.onload = () => {
-          previewError.style.display = 'none';
-          preview.style.display = 'block';
-        };
+        preview.onerror = () => { preview.style.display = 'none'; previewError.style.display = 'block'; };
+        preview.onload  = () => { previewError.style.display = 'none'; preview.style.display = 'block'; };
         preview.src = url;
       }
     });
 
     async function sendNotification() {
-      const apiKey   = localStorage.getItem('notiplus_api_key') || '';
       const title    = document.getElementById('title').value.trim();
       const body     = document.getElementById('body').value.trim();
       const imageUrl = document.getElementById('imageUrl').value.trim();
-      const statusEl = document.getElementById('status');
       const btn      = document.getElementById('sendBtn');
 
-      statusEl.className = 'status';
-      statusEl.textContent = '';
+      document.getElementById('status').className = 'status';
 
-      if (!apiKey) {
-        toggleSettings();
-        return showStatus('error', 'Please enter your API Key in ⚙️ Settings first');
-      }
       if (!title) return showStatus('error', 'Title is required');
       if (!body)  return showStatus('error', 'Body is required');
 
@@ -253,7 +163,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
+            ...(API_KEY ? { 'Authorization': `Bearer ${API_KEY}` } : {}),
           },
           body: JSON.stringify({ title, body, ...(imageUrl ? { imageUrl } : {}) }),
         });

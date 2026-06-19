@@ -29,7 +29,7 @@ Future<void> _initNotifications() async {
   await _notificationsPlugin
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
-      ?.requestPermission();
+      ?.requestNotificationsPermission();
 }
 
 Future<String?> _downloadImage(String url, int id) async {
@@ -38,7 +38,8 @@ Future<String?> _downloadImage(String url, int id) async {
     if (response.statusCode != 200) return null;
     final dir = await getTemporaryDirectory();
     final ext = url.split('.').last.split('?').first.toLowerCase();
-    final validExt = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext) ? ext : 'jpg';
+    final validExt =
+        ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext) ? ext : 'jpg';
     final file = File('${dir.path}/notiplus_$id.$validExt');
     await file.writeAsBytes(response.bodyBytes);
     return file.path;
@@ -145,25 +146,25 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const String _defaultWsUrl =
+  static const String _wsUrl =
       'wss://notiplus-api.k-kittanai46.workers.dev/ws';
 
   WebSocketChannel? _channel;
   StreamSubscription? _subscription;
   bool _isConnected = false;
-  String _wsUrl = _defaultWsUrl;
+  Timer? _reconnectTimer;
   final List<ReceivedNotification> _notifications = [];
-  final _urlController = TextEditingController(text: _defaultWsUrl);
+
+  @override
+  void initState() {
+    super.initState();
+    _connect();
+  }
 
   void _connect() {
     if (_isConnected) return;
-    final url = _urlController.text.trim();
-    if (url.isEmpty) return;
-
-    setState(() => _wsUrl = url);
-
     try {
-      _channel = WebSocketChannel.connect(Uri.parse(url));
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
       _subscription = _channel!.stream.listen(
         _onMessage,
         onError: _onError,
@@ -171,15 +172,23 @@ class _HomeScreenState extends State<HomeScreen> {
         cancelOnError: false,
       );
       setState(() => _isConnected = true);
-    } catch (e) {
-      _showSnackBar('Connection failed: $e');
+    } catch (_) {
+      _scheduleReconnect();
     }
   }
 
   void _disconnect() {
+    _reconnectTimer?.cancel();
     _subscription?.cancel();
     _channel?.sink.close();
     setState(() => _isConnected = false);
+  }
+
+  void _scheduleReconnect() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) _connect();
+    });
   }
 
   void _onMessage(dynamic data) {
@@ -207,23 +216,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onError(Object error) {
     setState(() => _isConnected = false);
-    _showSnackBar('WebSocket error: $error');
+    _scheduleReconnect();
   }
 
   void _onDone() {
     setState(() => _isConnected = false);
-  }
-
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    _scheduleReconnect();
   }
 
   @override
   void dispose() {
     _disconnect();
-    _urlController.dispose();
     super.dispose();
   }
 
@@ -245,7 +248,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          _buildConnectionCard(),
+          _buildStatusBar(),
           const Divider(height: 1),
           Expanded(child: _buildNotificationList()),
         ],
@@ -253,69 +256,25 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _scanQrCode() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-    );
-    if (result != null && result.isNotEmpty) {
-      _urlController.text = result;
-    }
-  }
-
-  Widget _buildConnectionCard() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget _buildStatusBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      color: _isConnected ? Colors.green[50] : Colors.grey[100],
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _urlController,
-                  enabled: !_isConnected,
-                  decoration: const InputDecoration(
-                    labelText: 'WebSocket URL',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.link),
-                  ),
-                  keyboardType: TextInputType.url,
-                ),
-              ),
-              if (!_isConnected) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: _scanQrCode,
-                  icon: const Icon(Icons.qr_code_scanner),
-                  tooltip: 'Scan QR Code',
-                  style: IconButton.styleFrom(
-                    backgroundColor: Colors.deepPurple[50],
-                  ),
-                ),
-              ],
-            ],
+          Icon(
+            _isConnected ? Icons.circle : Icons.circle_outlined,
+            size: 12,
+            color: _isConnected ? Colors.green : Colors.grey,
           ),
-          const SizedBox(height: 12),
-          ElevatedButton.icon(
-            onPressed: _isConnected ? _disconnect : _connect,
-            icon: Icon(_isConnected ? Icons.stop : Icons.play_arrow),
-            label: Text(_isConnected ? 'Disconnect' : 'Connect'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  _isConnected ? Colors.red[100] : Colors.green[100],
-              padding: const EdgeInsets.symmetric(vertical: 12),
+          const SizedBox(width: 8),
+          Text(
+            _isConnected ? 'Connected — receiving notifications' : 'Connecting...',
+            style: TextStyle(
+              fontSize: 13,
+              color: _isConnected ? Colors.green[700] : Colors.grey[600],
             ),
           ),
-          if (_isConnected)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                'Connected to: $_wsUrl',
-                style: TextStyle(color: Colors.green[700], fontSize: 12),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
         ],
       ),
     );
