@@ -3,189 +3,350 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NotiPlus — Send Notification</title>
+  <title>NotiPlus</title>
   <style>
+    :root {
+      --primary: #6c63ff;
+      --primary-dark: #5a52d5;
+      --bg: #f0f2ff;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f5f5f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      background: var(--bg);
       min-height: 100vh;
-      padding: 16px;
     }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #6c63ff 0%, #3f3d8f 100%);
+      padding: 24px 32px;
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 { font-size: 22px; font-weight: 700; }
+    .header .sub { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+    .device-badge {
+      background: rgba(255,255,255,0.18);
+      backdrop-filter: blur(4px);
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 13px;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 28px 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 640px) { .container { grid-template-columns: 1fr; } }
+
     .card {
       background: white;
-      border-radius: 12px;
-      padding: 32px;
-      width: 100%;
-      max-width: 480px;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 2px 20px rgba(108,99,255,0.07);
     }
-    h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 4px; }
-    .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
-    .connected-badge {
-      display: inline-block;
-      background: #e8f5e9;
-      color: #2e7d32;
-      font-size: 12px;
-      padding: 3px 10px;
-      border-radius: 99px;
-      margin-bottom: 20px;
+    .card-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 18px;
     }
-    label { display: block; font-size: 13px; font-weight: 600; color: #444; margin-bottom: 6px; }
+    .full-width { grid-column: 1 / -1; }
+
+    /* ── Form ── */
+    label { font-size: 12px; font-weight: 600; color: #666; margin-bottom: 4px; display: block; }
     input, textarea {
       width: 100%;
-      padding: 10px 14px;
-      border: 1.5px solid #e0e0e0;
+      padding: 9px 12px;
+      border: 1.5px solid #e8e8f0;
       border-radius: 8px;
       font-size: 14px;
       outline: none;
       transition: border-color 0.2s;
-      margin-bottom: 16px;
-      resize: vertical;
+      margin-bottom: 12px;
+      font-family: inherit;
+      background: #fafafa;
     }
-    input:focus, textarea:focus { border-color: #6c63ff; }
+    input:focus, textarea:focus { border-color: var(--primary); background: white; }
+    textarea { resize: vertical; }
+
     .image-preview {
-      width: 100%;
-      max-height: 200px;
-      object-fit: cover;
-      border-radius: 8px;
-      margin-bottom: 16px;
-      display: none;
-      border: 1.5px solid #e0e0e0;
+      width: 100%; max-height: 140px; object-fit: cover;
+      border-radius: 8px; margin-bottom: 12px;
+      display: none; border: 1.5px solid #e8e8f0;
     }
-    .image-preview-error {
-      display: none;
-      margin-bottom: 16px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      background: #fff8e1;
-      color: #f57f17;
-      font-size: 13px;
+    .image-warn {
+      display: none; margin-bottom: 12px; padding: 8px 12px;
+      border-radius: 8px; background: #fff8e1; color: #e65100; font-size: 12px;
     }
-    button {
-      width: 100%;
-      padding: 12px;
-      background: #6c63ff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.2s;
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%; padding: 11px; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: 0.2s;
     }
-    button:hover { background: #5a52d5; }
-    button:disabled { background: #c0bdf5; cursor: not-allowed; }
-    .status {
-      margin-top: 16px;
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      display: none;
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-primary:disabled { background: #c0bdf5; cursor: not-allowed; }
+    .btn-outline {
+      background: white; color: var(--primary);
+      border: 1.5px solid var(--primary);
     }
+    .btn-outline:hover { background: #f0f0ff; }
+
+    /* ── Status ── */
+    .status { margin-top: 10px; padding: 9px 12px; border-radius: 8px; font-size: 13px; display: none; }
     .status.success { background: #e8f5e9; color: #2e7d32; display: block; }
     .status.error   { background: #ffebee; color: #c62828; display: block; }
+
+    /* ── Scheduled list ── */
+    .scheduled-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; border: 1.5px solid #eeeeee;
+      border-radius: 10px; margin-bottom: 8px;
+    }
+    .scheduled-item .info { flex: 1; min-width: 0; }
+    .s-title { font-size: 14px; font-weight: 600; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .s-meta  { font-size: 12px; color: #999; margin-top: 2px; }
+    .badge {
+      font-size: 11px; padding: 3px 9px; border-radius: 99px;
+      font-weight: 600; white-space: nowrap;
+    }
+    .badge-pending   { background: #e8eaf6; color: #3949ab; }
+    .badge-sent      { background: #e8f5e9; color: #388e3c; }
+    .badge-cancelled { background: #f5f5f5; color: #9e9e9e; }
+    .btn-sm-cancel {
+      background: none; border: 1.5px solid #ef9a9a; color: #e53935;
+      padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;
+    }
+    .btn-sm-cancel:hover { background: #ffebee; }
+    .empty { text-align: center; color: #bbb; font-size: 13px; padding: 24px 0; }
   </style>
 </head>
 <body>
-  <div class="card">
+
+<div class="header">
+  <div>
     <h1>🔔 NotiPlus</h1>
-    <p class="subtitle">Send push notifications to all connected Flutter apps</p>
+    <div class="sub">Push notification dashboard</div>
+  </div>
+  <div id="badge" class="device-badge" style="display:none">
+    ● <span id="connCount">0</span> device(s) online
+  </div>
+</div>
 
-    <div id="badge" class="connected-badge" style="display:none">● <span id="connCount">0</span> device(s) connected</div>
+<div class="container">
 
-    <label for="title">Notification Title</label>
-    <input id="title" type="text" placeholder="e.g. Server Alert" />
+  <!-- Send Now -->
+  <div class="card">
+    <div class="card-title">⚡ Send Now</div>
 
-    <label for="body">Notification Body</label>
-    <textarea id="body" rows="3" placeholder="e.g. Deployment completed successfully"></textarea>
+    <label>Title</label>
+    <input id="title" type="text" placeholder="Notification title" />
 
-    <label for="imageUrl">Image URL <span style="font-weight:400;color:#aaa">(optional)</span></label>
+    <label>Body</label>
+    <textarea id="body" rows="2" placeholder="Notification message"></textarea>
+
+    <label>Image URL <span style="font-weight:400;color:#bbb">(optional)</span></label>
     <input id="imageUrl" type="url" placeholder="https://example.com/image.jpg" />
-    <img id="imagePreview" class="image-preview" alt="Preview" />
-    <div id="imagePreviewError" class="image-preview-error">⚠️ Cannot preview — image has hotlink protection. Notification will still include the image.</div>
+    <img id="imagePreview" class="image-preview" alt="preview" />
+    <div id="imageWarn" class="image-warn">⚠️ Cannot preview (hotlink protection) — notification will still include the image.</div>
 
-    <button id="sendBtn" onclick="sendNotification()">Send Notification</button>
-    <div id="status" class="status"></div>
+    <button class="btn btn-primary" id="sendBtn" onclick="sendNow()">Send Notification</button>
+    <div id="sendStatus" class="status"></div>
   </div>
 
-  <script>
-    const API_URL     = 'https://notiplus-api.k-kittanai46.workers.dev';
-    const WS_ADMIN    = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
-    const API_KEY     = localStorage.getItem('notiplus_api_key') || '';
+  <!-- Schedule -->
+  <div class="card">
+    <div class="card-title">🕐 Schedule Notification</div>
 
-    function connectAdmin() {
-      const ws = new WebSocket(WS_ADMIN);
-      ws.onmessage = (e) => {
-        const d = JSON.parse(e.data);
-        if (d.connected !== undefined) {
-          document.getElementById('connCount').textContent = d.connected;
-          document.getElementById('badge').style.display = 'inline-block';
-        }
-      };
-      ws.onclose = () => setTimeout(connectAdmin, 3000);
-      ws.onerror = () => ws.close();
-    }
-    connectAdmin();
+    <label>Title</label>
+    <input id="sTitle" type="text" placeholder="Notification title" />
 
-    document.getElementById('imageUrl').addEventListener('input', (e) => {
-      const url = e.target.value.trim();
-      const preview = document.getElementById('imagePreview');
-      const previewError = document.getElementById('imagePreviewError');
-      preview.style.display = 'none';
-      previewError.style.display = 'none';
-      if (url) {
-        preview.onerror = () => { preview.style.display = 'none'; previewError.style.display = 'block'; };
-        preview.onload  = () => { previewError.style.display = 'none'; preview.style.display = 'block'; };
-        preview.src = url;
+    <label>Body</label>
+    <textarea id="sBody" rows="2" placeholder="Notification message"></textarea>
+
+    <label>Date & Time</label>
+    <input id="sDateTime" type="datetime-local" />
+
+    <button class="btn btn-outline" onclick="addSchedule()">Add to Schedule</button>
+    <div id="scheduleStatus" class="status"></div>
+  </div>
+
+  <!-- Scheduled List -->
+  <div class="card full-width">
+    <div class="card-title">📋 Scheduled Notifications</div>
+    <div id="scheduledList"></div>
+  </div>
+
+</div>
+
+<script>
+  const API_URL  = 'https://notiplus-api.k-kittanai46.workers.dev';
+  const WS_ADMIN = 'wss://notiplus-api.k-kittanai46.workers.dev/ws-admin';
+  const API_KEY  = localStorage.getItem('notiplus_api_key') || '';
+
+  // Real-time device count
+  function connectAdmin() {
+    const ws = new WebSocket(WS_ADMIN);
+    ws.onmessage = (e) => {
+      const d = JSON.parse(e.data);
+      if (d.connected !== undefined) {
+        document.getElementById('connCount').textContent = d.connected;
+        document.getElementById('badge').style.display = 'inline-block';
       }
+    };
+    ws.onclose = () => setTimeout(connectAdmin, 3000);
+    ws.onerror = () => ws.close();
+  }
+  connectAdmin();
+
+  // Image preview
+  document.getElementById('imageUrl').addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    const img = document.getElementById('imagePreview');
+    const warn = document.getElementById('imageWarn');
+    img.style.display = 'none';
+    warn.style.display = 'none';
+    if (url) {
+      img.onerror = () => { img.style.display = 'none'; warn.style.display = 'block'; };
+      img.onload  = () => { warn.style.display = 'none'; img.style.display = 'block'; };
+      img.src = url;
+    }
+  });
+
+  // ── Send Now ──
+  async function sendNow() {
+    const title    = document.getElementById('title').value.trim();
+    const body     = document.getElementById('body').value.trim();
+    const imageUrl = document.getElementById('imageUrl').value.trim();
+    const btn      = document.getElementById('sendBtn');
+
+    clearStatus('sendStatus');
+    if (!title) return showStatus('sendStatus', 'error', 'Title is required');
+    if (!body)  return showStatus('sendStatus', 'error', 'Body is required');
+
+    btn.disabled = true; btn.textContent = 'Sending…';
+    try {
+      const res = await apiFetch('/send', { title, body, ...(imageUrl ? { imageUrl } : {}) });
+      const data = await res.json();
+      if (res.ok) {
+        showStatus('sendStatus', 'success', `✓ Sent to ${data.sent} device(s)`);
+        document.getElementById('title').value = '';
+        document.getElementById('body').value = '';
+        document.getElementById('imageUrl').value = '';
+        document.getElementById('imagePreview').style.display = 'none';
+      } else {
+        showStatus('sendStatus', 'error', data.error || 'Send failed');
+      }
+    } catch (e) {
+      showStatus('sendStatus', 'error', `Network error: ${e.message}`);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Send Notification';
+    }
+  }
+
+  // ── Schedule ──
+  function addSchedule() {
+    const title    = document.getElementById('sTitle').value.trim();
+    const body     = document.getElementById('sBody').value.trim();
+    const dateTime = document.getElementById('sDateTime').value;
+
+    clearStatus('scheduleStatus');
+    if (!title)    return showStatus('scheduleStatus', 'error', 'Title is required');
+    if (!body)     return showStatus('scheduleStatus', 'error', 'Body is required');
+    if (!dateTime) return showStatus('scheduleStatus', 'error', 'Date & time is required');
+
+    const at = new Date(dateTime);
+    if (at <= new Date()) return showStatus('scheduleStatus', 'error', 'Time must be in the future');
+
+    const list = getList();
+    list.unshift({ id: Date.now(), title, body, at: at.toISOString(), status: 'pending' });
+    saveList(list);
+    renderList();
+
+    document.getElementById('sTitle').value = '';
+    document.getElementById('sBody').value = '';
+    document.getElementById('sDateTime').value = '';
+    showStatus('scheduleStatus', 'success', '✓ Scheduled');
+  }
+
+  function cancelItem(id) {
+    const list = getList().map(i => i.id === id ? { ...i, status: 'cancelled' } : i);
+    saveList(list);
+    renderList();
+  }
+
+  function getList() { return JSON.parse(localStorage.getItem('notiplus_scheduled') || '[]'); }
+  function saveList(l) { localStorage.setItem('notiplus_scheduled', JSON.stringify(l)); }
+
+  async function checkScheduled() {
+    const now = new Date();
+    const list = getList();
+    let changed = false;
+    for (const item of list) {
+      if (item.status === 'pending' && new Date(item.at) <= now) {
+        try { await apiFetch('/send', { title: item.title, body: item.body }); } catch(_) {}
+        item.status = 'sent';
+        changed = true;
+      }
+    }
+    if (changed) { saveList(list); renderList(); }
+  }
+
+  function renderList() {
+    const cutoff = Date.now() - 86400000;
+    const list = getList().filter(i => new Date(i.at) >= cutoff || i.status === 'pending');
+    const el = document.getElementById('scheduledList');
+    if (!list.length) { el.innerHTML = '<div class="empty">No scheduled notifications</div>'; return; }
+
+    el.innerHTML = list.map(item => {
+      const timeStr = new Date(item.at).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+      const bClass = { pending: 'badge-pending', sent: 'badge-sent', cancelled: 'badge-cancelled' }[item.status];
+      const bText  = { pending: 'Pending', sent: 'Sent', cancelled: 'Cancelled' }[item.status];
+      const cancel = item.status === 'pending'
+        ? `<button class="btn-sm-cancel" onclick="cancelItem(${item.id})">Cancel</button>` : '';
+      return `
+        <div class="scheduled-item">
+          <div class="info">
+            <div class="s-title">${item.title}</div>
+            <div class="s-meta">${item.body} · ${timeStr}</div>
+          </div>
+          <span class="badge ${bClass}">${bText}</span>
+          ${cancel}
+        </div>`;
+    }).join('');
+  }
+
+  function apiFetch(path, body) {
+    return fetch(API_URL + path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(API_KEY ? { Authorization: `Bearer ${API_KEY}` } : {}),
+      },
+      body: JSON.stringify(body),
     });
+  }
 
-    async function sendNotification() {
-      const title    = document.getElementById('title').value.trim();
-      const body     = document.getElementById('body').value.trim();
-      const imageUrl = document.getElementById('imageUrl').value.trim();
-      const btn      = document.getElementById('sendBtn');
+  function showStatus(id, type, msg) {
+    const el = document.getElementById(id);
+    el.className = `status ${type}`;
+    el.textContent = msg;
+  }
+  function clearStatus(id) { document.getElementById(id).className = 'status'; }
 
-      document.getElementById('status').className = 'status';
-
-      if (!title) return showStatus('error', 'Title is required');
-      if (!body)  return showStatus('error', 'Body is required');
-
-      btn.disabled = true;
-      btn.textContent = 'Sending…';
-
-      try {
-        const res = await fetch(`${API_URL}/send`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(API_KEY ? { 'Authorization': `Bearer ${API_KEY}` } : {}),
-          },
-          body: JSON.stringify({ title, body, ...(imageUrl ? { imageUrl } : {}) }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          showStatus('success', `✓ Sent to ${data.sent} device(s)`);
-        } else {
-          showStatus('error', data.error || 'Send failed');
-        }
-      } catch (e) {
-        showStatus('error', `Network error: ${e.message}`);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Send Notification';
-      }
-    }
-
-    function showStatus(type, msg) {
-      const el = document.getElementById('status');
-      el.className = `status ${type}`;
-      el.textContent = msg;
-    }
-  </script>
+  checkScheduled();
+  setInterval(checkScheduled, 30000);
+  renderList();
+</script>
 </body>
 </html>
