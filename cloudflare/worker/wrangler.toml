@@ -1,0 +1,12 @@
+name = "notiplus-api"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+# Durable Objects — keeps WebSocket sessions in memory
+[[durable_objects.bindings]]
+name = "NOTIFICATION_HUB"
+class_name = "NotificationHub"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["NotificationHub"]
